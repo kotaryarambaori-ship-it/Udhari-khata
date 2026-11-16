@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="hi"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Udhar Khata</title>
+<style>
+body{font-family:sans-serif;margin:0;padding:12px;background:#f5f5f5}
+h2{text-align:center;margin:6px 0}
+input{padding:6px;border:1px solid #888;border-radius:6px;font-size:15px;width:100%;box-sizing:border-box}
+.wrap{max-height:55vh;overflow:auto;background:#fff;margin:10px 0}
+table{border-collapse:collapse}
+td,th{border:1px solid #444;padding:2px;min-width:80px}
+th{position:sticky;top:0;background:#ddd;z-index:2}
+td:first-child,th:first-child{position:sticky;left:0;background:#eee;min-width:120px;z-index:3}
+tfoot td{position:sticky;bottom:0;background:#ffe9a8;font-weight:bold;text-align:center}
+td input{border:none}
+.x{background:#c62828;color:#fff;border:0;border-radius:4px;padding:3px 7px;margin-left:3px}
+button{padding:10px 12px;font-size:15px;border:0;border-radius:6px;background:#3949ab;color:#fff;margin:3px 2px}
+button:disabled{opacity:.4}
+.g{background:#2e7d32}
+.box{background:#fff;border:1px solid #444;padding:8px;margin:6px 0}
+</style></head><body>
+<h2>Udhar Khata</h2>
+<input id="s" placeholder="Search naam..." oninput="draw()">
+<div class="wrap"><table id="t"></table></div>
+<div class="box">Admi: <b id="c">0</b> &nbsp; <small id="m">Offline chalu</small></div>
+<button onclick="tg()" id="eb">Edit band</button>
+<button onclick="addP()">Entry</button>
+<button onclick="addD()">+ Date</button>
+<button onclick="save()">Save</button><br>
+<button class="g" onclick="backup()">Backup</button>
+<button class="g" onclick="document.getElementById('f').click()">Restore</button>
+<input type="file" id="f" accept=".json" style="display:none" onchange="restore(this)">
+<script>
+const KEY='khata5';
+const today=()=>new Date().toISOString().slice(0,10);
+const uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s).replace(/"/g,'&quot;');
+let S=null;
+try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+if(!S){
+ S={p:[],r:[]};
+ for(let i=0;i<100;i++)S.p.push({id:uid(),n:''});
+ for(let i=0;i<5;i++)S.r.push({d:today(),v:{}});
+}
+let ed=true;
+function persist(){
+ try{localStorage.setItem(KEY,JSON.stringify(S));
+ document.getElementById('m').textContent='Save: '+new Date().toLocaleTimeString('en-IN')}
+ catch(e){document.getElementById('m').textContent='Save nahi hua! Backup lo'}
+}
+function draw(){
+ const q=document.getElementById('s').value.toLowerCase();
+ const x=ed?'':'disabled';
+ const P=S.p.filter(p=>p.n.toLowerCase().includes(q));
+ let h='<thead><tr><th>Date</th>'+P.map(p=>`<th><input ${x} value="${esc(p.n)}" placeholder="Naam" style="width:70px" onchange="nm('${p.id}',this.value)"><button class="x" ${x} onclick="delP('${p.id}')">✕</button></th>`).join('')+'<th></th></tr></thead><tbody>';
+ S.r.forEach((r,i)=>{
+  h+=`<tr><td><input ${x} type="date" value="${r.d}" onchange="S.r[${i}].d=this.value;persist()"></td>`
+  +P.map(p=>`<td><input ${x} type="number" value="${r.v[p.id]||''}" onchange="S.r[${i}].v['${p.id}']=this.value;draw()"></td>`).join('')
+  +`<td><button class="x" ${x} onclick="delD(${i})">🗑</button></td></tr>`;
+ });
+ h+='</tbody><tfoot><tr><td>TOTAL</td>'+P.map(p=>`<td>${S.r.reduce((a,r)=>a+(+r.v[p.id]||0),0)}</td>`).join('')+'<td></td></tr></tfoot>';
+ document.getElementById('t').innerHTML=h;
+ document.getElementById('c').textContent=S.p.filter(p=>p.n.trim()).length;
+ persist();
+}
+function nm(id,v){S.p.find(p=>p.id==id).n=v;draw()}
+function addP(){S.p.push({id:uid(),n:''});ed=true;draw();document.querySelector('.wrap').scrollLeft=99999}
+function addD(){S.r.push({d:today(),v:{}});ed=true;draw();document.querySelector('.wrap').scrollTop=99999}
+function delP(id){
+ const p=S.p.find(p=>p.id==id);
+ if(!confirm((p.n||'Is admi')+' ko delete karein?'))return;
+ S.p=S.p.filter(p=>p.id!=id);S.r.forEach(r=>delete r.v[id]);draw();
+}
+function delD(i){if(!confirm('Ye date delete karein?'))return;S.r.splice(i,1);draw()}
+function tg(){ed=!ed;document.getElementById('eb').textContent=ed?'Edit band':'Edit';draw()}
+function save(){persist();alert('Save ho gaya')}
+function backup(){
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));
+ a.download='khata-backup-'+today()+'.json';
+ a.click();
+}
+function restore(el){
+ const f=el.files[0];if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const d=JSON.parse(r.result);
+   if(!d.p||!d.r)throw 0;
+   if(!confirm('Abhi ka data hatakar backup wala data laayein?'))return;
+   S=d;draw();alert('Restore ho gaya');
+  }catch(e){alert('Ye sahi backup file nahi hai')}
+ };
+ r.readAsText(f);el.value='';
+}
+draw();
+</script></body></html>
