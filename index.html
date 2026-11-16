@@ -22,7 +22,7 @@ button:disabled{opacity:.4}
 </style></head><body>
 <h2>Udhar Khata</h2>
 <input id="s" placeholder="Search naam..." oninput="draw()">
-<div class="wrap"><table id="t"></table></div>
+<div class="wrap" id="w" onscroll="more()"><table id="t"></table></div>
 <div class="box">Admi: <b id="c">0</b> &nbsp; <small id="m">Offline chalu</small></div>
 <button onclick="tg()" id="eb">Edit band</button>
 <button onclick="addP()">Entry</button>
@@ -33,7 +33,11 @@ button:disabled{opacity:.4}
 <input type="file" id="f" accept=".json" style="display:none" onchange="restore(this)">
 <script>
 const KEY='khata5';
-const today=()=>new Date().toISOString().slice(0,10);
+const pad=n=>String(n).padStart(2,'0');
+const iso=t=>t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate());
+const today=()=>iso(new Date());
+const fmt=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d||'');return m?m[3]+'/'+m[2]+'/'+m[1]:(d||'')};
+const nextDay=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d||'');if(!m)return today();return iso(new Date(+m[1],+m[2]-1,+m[3]+1))};
 const uid=()=>Math.random().toString(36).slice(2,9);
 const esc=s=>String(s).replace(/"/g,'&quot;');
 let S=null;
@@ -41,13 +45,30 @@ try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
 if(!S){
  S={p:[],r:[]};
  for(let i=0;i<100;i++)S.p.push({id:uid(),n:''});
- for(let i=0;i<5;i++)S.r.push({d:today(),v:{}});
 }
+function rows(n){
+ for(let i=0;i<n;i++){
+  const last=S.r.length?S.r[S.r.length-1].d:null;
+  S.r.push({d:last?nextDay(last):today(),v:{}});
+ }
+}
+if(S.r.length<10)rows(10-S.r.length);
 let ed=true;
 function persist(){
- try{localStorage.setItem(KEY,JSON.stringify(S));
- document.getElementById('m').textContent='Save: '+new Date().toLocaleTimeString('en-IN')}
- catch(e){document.getElementById('m').textContent='Save nahi hua! Backup lo'}
+ try{
+  const R=S.r.slice();
+  while(R.length>10&&Object.values(R[R.length-1].v).every(x=>!x))R.pop();
+  localStorage.setItem(KEY,JSON.stringify({p:S.p,r:R}));
+  document.getElementById('m').textContent='Save: '+new Date().toLocaleTimeString('en-IN');
+ }catch(e){document.getElementById('m').textContent='Save nahi hua! Backup lo'}
+}
+function setD(i,v){
+ const m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(v.trim());
+ if(!m){alert('Date aise likho: 16/11/2026');draw();return}
+ const dd=m[1].padStart(2,'0'),mm=m[2].padStart(2,'0');
+ const t=new Date(m[3]+'-'+mm+'-'+dd);
+ if(isNaN(t)||t.getUTCDate()!=+dd){alert('Galat date');draw();return}
+ S.r[i].d=m[3]+'-'+mm+'-'+dd;draw();
 }
 function draw(){
  const q=document.getElementById('s').value.toLowerCase();
@@ -55,7 +76,7 @@ function draw(){
  const P=S.p.filter(p=>p.n.toLowerCase().includes(q));
  let h='<thead><tr><th>Date</th>'+P.map(p=>`<th><input ${x} value="${esc(p.n)}" placeholder="Naam" style="width:70px" onchange="nm('${p.id}',this.value)"><button class="x" ${x} onclick="delP('${p.id}')">✕</button></th>`).join('')+'<th></th></tr></thead><tbody>';
  S.r.forEach((r,i)=>{
-  h+=`<tr><td><input ${x} type="date" value="${r.d}" onchange="S.r[${i}].d=this.value;persist()"></td>`
+  h+=`<tr><td><input ${x} type="text" inputmode="numeric" placeholder="DD/MM/YYYY" value="${fmt(r.d)}" onchange="setD(${i},this.value)"></td>`
   +P.map(p=>`<td><input ${x} type="number" value="${r.v[p.id]||''}" onchange="S.r[${i}].v['${p.id}']=this.value;draw()"></td>`).join('')
   +`<td><button class="x" ${x} onclick="delD(${i})">🗑</button></td></tr>`;
  });
@@ -64,15 +85,20 @@ function draw(){
  document.getElementById('c').textContent=S.p.filter(p=>p.n.trim()).length;
  persist();
 }
+function more(){
+ if(!ed)return;
+ const w=document.getElementById('w');
+ if(w.scrollTop+w.clientHeight>=w.scrollHeight-80){rows(10);draw()}
+}
 function nm(id,v){S.p.find(p=>p.id==id).n=v;draw()}
-function addP(){S.p.push({id:uid(),n:''});ed=true;draw();document.querySelector('.wrap').scrollLeft=99999}
-function addD(){S.r.push({d:today(),v:{}});ed=true;draw();document.querySelector('.wrap').scrollTop=99999}
+function addP(){S.p.push({id:uid(),n:''});ed=true;draw();document.getElementById('w').scrollLeft=99999}
+function addD(){rows(1);ed=true;draw();document.getElementById('w').scrollTop=99999}
 function delP(id){
  const p=S.p.find(p=>p.id==id);
  if(!confirm((p.n||'Is admi')+' ko delete karein?'))return;
  S.p=S.p.filter(p=>p.id!=id);S.r.forEach(r=>delete r.v[id]);draw();
 }
-function delD(i){if(!confirm('Ye date delete karein?'))return;S.r.splice(i,1);draw()}
+function delD(i){if(!confirm('Ye date delete karein?'))return;S.r.splice(i,1);if(S.r.length<10)rows(10-S.r.length);draw()}
 function tg(){ed=!ed;document.getElementById('eb').textContent=ed?'Edit band':'Edit';draw()}
 function save(){persist();alert('Save ho gaya')}
 function backup(){
@@ -89,7 +115,7 @@ function restore(el){
    const d=JSON.parse(r.result);
    if(!d.p||!d.r)throw 0;
    if(!confirm('Abhi ka data hatakar backup wala data laayein?'))return;
-   S=d;draw();alert('Restore ho gaya');
+   S=d;if(S.r.length<10)rows(10-S.r.length);draw();alert('Restore ho gaya');
   }catch(e){alert('Ye sahi backup file nahi hai')}
  };
  r.readAsText(f);el.value='';
